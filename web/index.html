@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ELAC SUB BLE Read Client</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <h1>ELAC SUB BLE Read Client</h1>
+        <p id="support" class="support">Checking Web Bluetooth support.</p>
+      </div>
+      <div class="actions">
+        <button id="connect" type="button">Connect</button>
+        <button id="connect-any" type="button">Broad scan</button>
+        <button id="disconnect" type="button" disabled>Disconnect</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel status-panel">
+        <div>
+          <h2>Status</h2>
+          <p id="status">Idle.</p>
+        </div>
+        <div class="read-controls">
+          <label>
+            <input id="include-optional" type="checkbox" />
+            Include optional reads
+          </label>
+          <label>
+            Command
+            <select id="command-select"></select>
+          </label>
+          <button id="send-selected" type="button" disabled>Send selected read</button>
+          <button id="run-reads" type="button" disabled>Run read sequence</button>
+          <button id="export-log" type="button" disabled>Export log</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Discovered GATT Path</h2>
+        <div id="discovered" class="discovered">Connect to inspect documented ELAC service paths.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Read Results</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Payload</th>
+                <th>Value</th>
+                <th>Raw frame</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Event Log</h2>
+        <ol id="event-log" class="event-log"></ol>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

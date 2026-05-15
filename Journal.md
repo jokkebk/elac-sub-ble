@@ -42,3 +42,28 @@
 - Added `scripts/elac_protocol.py` to encode/decode the packet format without
   copying APK code. Smoke-tested a sample master-volume write frame:
   `c0 00 40 01 00 4b a0 03 c0`.
+- Added a static read-only Web Bluetooth client under `web/` for live testing
+  with Chrome/Edge. It discovers the documented GATT service paths, enables
+  notifications/indications, sends command type `0` query packets only, decodes
+  responses with the independent CRC/framing implementation, and exports JSON
+  logs for later protocol notes or emulator fixtures.
+- Live Chrome broad-scan testing can select `SUB-2050`, but the device does not
+  expose the two documented service UUIDs to Web Bluetooth. One extra APK UUID
+  service exposed characteristic `c6a0486f-71b5-4226-9057-bf2baa8334e8` as
+  writable, so the web client now probes extra APK UUIDs and can promote a
+  matching write/notify characteristic layout to an experimental path.
+- Confirmed the live SUB 2050 GATT service path:
+  `57047866-4794-421b-bacf-68a120b4f339`, write
+  `c6a0486f-71b5-4226-9057-bf2baa8334e8`, notify
+  `116bd560-2c1b-4769-b07d-85e36fc5e086`. A read/query run produced repeated
+  valid `0023` responses with payload `03`, so the web client now sends the read
+  sequence one command at a time and waits for a matching response or timeout.
+- Targeted read of master volume is confirmed. Sent
+  `c0 00 40 00 00 1d ad c0`; received `c0 00 40 00 01 2a d8 85 c0`, decoded as
+  command `0040`, type `0`, status `1`, payload `2a`. The sub was set to volume
+  42, confirming direct one-byte volume encoding for this value.
+- Full read sequence with optional fields succeeded. Confirmed live values:
+  preset `1`, delay `0`, name/model `SUB-2050`, power mode `1`, power threshold
+  `3`, auto EQ enabled/calibrated `1`, firmware `2.9.12`, hardware `4`, IP
+  string `NA`, manufacturer `ELAC`. LED brightness command `0152` returned
+  type `0`, status `2`, empty payload.
