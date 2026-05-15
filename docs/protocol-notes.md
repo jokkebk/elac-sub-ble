@@ -102,6 +102,11 @@ Static receive handling still suggests:
 - `commandStatus == 0` and `commandId != 0`: queued data response path.
 - `commandId == 0`: return/status path.
 
+The Web Bluetooth diagnostic client now has a guarded write tab. Volume `0040`
+uses a one-byte payload and is the only write without an additional confirmation
+prompt. Other write controls require browser confirmation and should be treated
+as experimental until more read/write pairs are captured.
+
 ## Command IDs
 
 Confirmed from repository and UI code:

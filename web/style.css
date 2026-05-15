@@ -68,6 +68,29 @@ h2 {
   max-width: 100%;
 }
 
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-button {
+  background: #fff;
+  color: var(--accent);
+}
+
+.tab-button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
 button {
   min-height: 40px;
   border: 1px solid var(--accent);
@@ -103,6 +126,7 @@ label {
   font-size: 0.95rem;
 }
 
+input,
 select {
   min-height: 40px;
   border: 1px solid var(--line);
@@ -113,6 +137,19 @@ select {
   font: inherit;
 }
 
+input[type="number"] {
+  width: 90px;
+}
+
+input[type="text"] {
+  width: min(220px, 100%);
+}
+
+input[type="checkbox"] {
+  min-height: auto;
+}
+
+input:disabled,
 select:disabled {
   background: #edf0ed;
   color: #7b8780;

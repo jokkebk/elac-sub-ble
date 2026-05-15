@@ -2,9 +2,13 @@ import {
   READ_COMMANDS,
   decodeFrame,
   encodeReadFrame,
+  encodeWriteFrame,
   extractSlipFrames,
   hexFromBytes,
   interpretPayload,
+  littleEndianUint16Payload,
+  nullTerminatedStringPayload,
+  uint8Payload,
 } from "./protocol.js";
 
 const SERVICE_PATHS = [
@@ -50,6 +54,77 @@ const APK_SERVICE_CANDIDATES = [
   "d2846bcd-572b-4d51-9565-447b838d9a04",
 ];
 
+const WRITE_COMMANDS = [
+  {
+    id: "0040",
+    name: "Master volume",
+    kind: "uint8",
+    min: 0,
+    max: 100,
+    defaultValue: 42,
+    confirm: false,
+    readBack: true,
+  },
+  {
+    id: "004A",
+    name: "Preset",
+    kind: "uint8",
+    min: 0,
+    max: 10,
+    defaultValue: 1,
+    confirm: true,
+    readBack: true,
+  },
+  {
+    id: "004B",
+    name: "Delay, tenths",
+    kind: "tenths16",
+    min: 0,
+    max: 300,
+    step: 0.1,
+    defaultValue: 0,
+    confirm: true,
+    readBack: true,
+  },
+  {
+    id: "0022",
+    name: "Power mode",
+    kind: "uint8",
+    min: 0,
+    max: 3,
+    defaultValue: 1,
+    confirm: true,
+    readBack: true,
+  },
+  {
+    id: "0023",
+    name: "Power threshold",
+    kind: "uint8",
+    min: 0,
+    max: 10,
+    defaultValue: 3,
+    confirm: true,
+    readBack: true,
+  },
+  {
+    id: "0172",
+    name: "Auto EQ enabled",
+    kind: "bool",
+    defaultValue: 1,
+    confirm: true,
+    readBack: true,
+  },
+  {
+    id: "0024",
+    name: "Subwoofer name",
+    kind: "string",
+    maxLength: 24,
+    defaultValue: "SUB-2050",
+    confirm: true,
+    readBack: true,
+  },
+];
+
 const els = {
   support: document.querySelector("#support"),
   status: document.querySelector("#status"),
@@ -61,8 +136,13 @@ const els = {
   commandSelect: document.querySelector("#command-select"),
   sendSelected: document.querySelector("#send-selected"),
   exportLog: document.querySelector("#export-log"),
+  readTabButton: document.querySelector("#read-tab-button"),
+  writeTabButton: document.querySelector("#write-tab-button"),
+  readPanel: document.querySelector("#read-panel"),
+  writePanel: document.querySelector("#write-panel"),
   discovered: document.querySelector("#discovered"),
   resultsBody: document.querySelector("#results-body"),
+  writeBody: document.querySelector("#write-body"),
   eventLog: document.querySelector("#event-log"),
 };
 
@@ -86,12 +166,15 @@ function init() {
   renderSupport();
   renderCommandSelect();
   renderCommandRows();
+  renderWriteRows();
   els.connect.addEventListener("click", connect);
   els.connectAny.addEventListener("click", connectBroad);
   els.disconnect.addEventListener("click", disconnect);
   els.runReads.addEventListener("click", runReadSequence);
   els.sendSelected.addEventListener("click", sendSelectedRead);
   els.exportLog.addEventListener("click", exportLog);
+  els.readTabButton.addEventListener("click", () => selectTab("read"));
+  els.writeTabButton.addEventListener("click", () => selectTab("write"));
   window.addEventListener("error", (event) => {
     setStatus(event.message, true);
     logEvent(`Unhandled error: ${event.message}`);
@@ -102,6 +185,14 @@ function init() {
     logEvent(`Unhandled promise rejection: ${message}`);
   });
   refreshBluetoothAvailability();
+}
+
+function selectTab(name) {
+  const readSelected = name === "read";
+  els.readTabButton.classList.toggle("active", readSelected);
+  els.writeTabButton.classList.toggle("active", !readSelected);
+  els.readPanel.classList.toggle("active", readSelected);
+  els.writePanel.classList.toggle("active", !readSelected);
 }
 
 function renderSupport() {
@@ -143,6 +234,50 @@ function renderCommandRows() {
     `;
     els.resultsBody.append(tr);
   }
+}
+
+function renderWriteRows() {
+  els.writeBody.replaceChildren();
+  for (const command of WRITE_COMMANDS) {
+    const tr = document.createElement("tr");
+    tr.dataset.commandId = command.id;
+    tr.innerHTML = `
+      <td><code>${command.id}</code></td>
+      <td>${command.name}${command.confirm ? " <span class=\"muted\">confirm</span>" : ""}</td>
+      <td>${renderWriteInput(command)}</td>
+      <td><button class="write-action" type="button" disabled>Write</button></td>
+      <td class="write-status-cell">Not written</td>
+      <td class="write-payload-cell"><code></code></td>
+      <td class="write-raw-cell"><code></code></td>
+    `;
+    tr.querySelector(".write-action").addEventListener("click", () => sendWriteCommand(command));
+    els.writeBody.append(tr);
+  }
+}
+
+function renderWriteInput(command) {
+  if (command.kind === "bool") {
+    return `
+      <select class="write-input">
+        <option value="1" ${command.defaultValue === 1 ? "selected" : ""}>1 / true</option>
+        <option value="0" ${command.defaultValue === 0 ? "selected" : ""}>0 / false</option>
+      </select>
+    `;
+  }
+  if (command.kind === "string") {
+    return `<input class="write-input" type="text" maxlength="${command.maxLength}" value="${escapeHtml(command.defaultValue)}" />`;
+  }
+  const step = command.step || 1;
+  return `
+    <input
+      class="write-input"
+      type="number"
+      min="${command.min}"
+      max="${command.max}"
+      step="${step}"
+      value="${command.defaultValue}"
+    />
+  `;
 }
 
 function renderCommandSelect() {
@@ -406,6 +541,81 @@ async function sendReadCommand(command) {
   return response;
 }
 
+async function sendWriteCommand(command) {
+  if (!state.writeCharacteristic) {
+    setStatus("Connect to the sub before sending a write.", true);
+    return;
+  }
+  const value = getWriteInputValue(command.id);
+  const payload = payloadForWriteCommand(command, value);
+  if (command.confirm && !confirmWrite(command, value, payload)) {
+    logEvent(`Write ${command.id} ${command.name} cancelled before sending.`);
+    return;
+  }
+
+  setBusy(true);
+  try {
+    const frame = encodeWriteFrame(command.id, payload);
+    markWritePending(command.id, payload, frame);
+    const responsePromise = waitForCommandResponse(command.id, 1500);
+    await writeFrame(frame);
+    state.sent.push({
+      at: new Date().toISOString(),
+      commandId: command.id,
+      commandName: command.name,
+      commandType: 1,
+      value: String(value),
+      frameHex: hexFromBytes(frame),
+    });
+    logEvent(`Sent write ${command.id} ${command.name} value=${value}: ${hexFromBytes(frame)}`);
+    const response = await responsePromise;
+    if (response) {
+      markWriteResponse(command.id, response);
+      logEvent(`Write ${command.id} got matching response payload ${response.payloadHex || "(empty)"}.`);
+    } else {
+      markWriteTimeout(command.id);
+      logEvent(`Write ${command.id} timed out waiting for a matching response.`);
+    }
+    if (command.readBack) {
+      const readCommand = READ_COMMANDS.find((item) => item.id === command.id);
+      if (readCommand) {
+        await sendReadCommand(readCommand);
+      }
+    }
+  } catch (error) {
+    markWriteError(command.id, error.message || String(error));
+    setStatus(error.message || String(error), true);
+    logEvent(`Write ${command.id} failed: ${error.message || error}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function payloadForWriteCommand(command, value) {
+  if (command.kind === "uint8" || command.kind === "bool") {
+    return uint8Payload(value);
+  }
+  if (command.kind === "tenths16") {
+    return littleEndianUint16Payload(Number(value) * 10);
+  }
+  if (command.kind === "string") {
+    return nullTerminatedStringPayload(String(value));
+  }
+  throw new Error(`Unsupported write payload kind ${command.kind}`);
+}
+
+function getWriteInputValue(commandId) {
+  const row = els.writeBody.querySelector(`tr[data-command-id="${commandId}"]`);
+  const input = row?.querySelector(".write-input");
+  return input?.value ?? "";
+}
+
+function confirmWrite(command, value, payload) {
+  return window.confirm(
+    `Write ${command.id} ${command.name}?\n\nValue: ${value}\nPayload: ${hexFromBytes(payload)}\n\nOnly continue if you are ready to change this setting on the subwoofer.`,
+  );
+}
+
 function waitForCommandResponse(commandId, timeoutMs) {
   return new Promise((resolve) => {
     const timeoutId = setTimeout(() => {
@@ -523,6 +733,41 @@ function markCommandTimeout(commandId) {
   row.querySelector(".status-cell").textContent = "Timed out waiting for response";
 }
 
+function markWritePending(commandId, payload, frame) {
+  const row = els.writeBody.querySelector(`tr[data-command-id="${commandId}"]`);
+  if (!row) {
+    return;
+  }
+  row.querySelector(".write-status-cell").textContent = "Sent write; waiting";
+  row.querySelector(".write-payload-cell code").textContent = hexFromBytes(payload);
+  row.querySelector(".write-raw-cell code").textContent = hexFromBytes(frame);
+}
+
+function markWriteResponse(commandId, response) {
+  const row = els.writeBody.querySelector(`tr[data-command-id="${commandId}"]`);
+  if (!row) {
+    return;
+  }
+  row.querySelector(".write-status-cell").textContent =
+    `Response CRC OK; type ${response.commandType}, status ${response.status}; readback requested`;
+}
+
+function markWriteTimeout(commandId) {
+  const row = els.writeBody.querySelector(`tr[data-command-id="${commandId}"]`);
+  if (!row) {
+    return;
+  }
+  row.querySelector(".write-status-cell").textContent = "Timed out; readback requested if available";
+}
+
+function markWriteError(commandId, message) {
+  const row = els.writeBody.querySelector(`tr[data-command-id="${commandId}"]`);
+  if (!row) {
+    return;
+  }
+  row.querySelector(".write-status-cell").textContent = `Error: ${message}`;
+}
+
 function exportLog() {
   const payload = {
     exportedAt: new Date().toISOString(),
@@ -582,6 +827,7 @@ function clearRuntimeState() {
   state.responseWaiters.clear();
   els.eventLog.replaceChildren();
   renderCommandRows();
+  renderWriteRows();
   renderDiscovered();
 }
 
@@ -603,6 +849,12 @@ function setBusy(isBusy) {
   els.connectAny.disabled = isBusy || !("bluetooth" in navigator) || Boolean(state.writeCharacteristic);
   els.runReads.disabled = isBusy || !state.writeCharacteristic;
   els.sendSelected.disabled = isBusy || !state.writeCharacteristic;
+  for (const button of els.writeBody.querySelectorAll(".write-action")) {
+    button.disabled = isBusy || !state.writeCharacteristic;
+  }
+  for (const input of els.writeBody.querySelectorAll(".write-input")) {
+    input.disabled = isBusy || !state.writeCharacteristic;
+  }
 }
 
 function chunkBytes(bytes, size) {

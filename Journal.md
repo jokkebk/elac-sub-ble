@@ -67,3 +67,6 @@
   `3`, auto EQ enabled/calibrated `1`, firmware `2.9.12`, hardware `4`, IP
   string `NA`, manufacturer `ELAC`. LED brightness command `0152` returned
   type `0`, status `2`, empty payload.
+- Extended the Web Bluetooth client with Read and Write tabs. The Write tab can
+  send command type `1` packets, with master volume `0040` available directly
+  and other known write commands guarded by browser confirmation plus readback.

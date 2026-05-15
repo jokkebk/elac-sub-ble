@@ -88,13 +88,17 @@ export function encodeReadFrame(commandId, payload = new Uint8Array()) {
   return encodeFrame({ commandId, commandType: 0, status: 0, payload });
 }
 
+export function encodeWriteFrame(commandId, payload = new Uint8Array()) {
+  return encodeFrame({ commandId, commandType: 1, status: 0, payload });
+}
+
 export function encodeFrame({ commandId, commandType, status = 0, payload = new Uint8Array() }) {
   const command = bytesFromHex(commandId);
   if (command.length !== 2) {
     throw new Error("commandId must be exactly two bytes, e.g. 0040");
   }
-  if (commandType !== 0) {
-    throw new Error("read-only client only permits command type 0");
+  if (commandType !== 0 && commandType !== 1) {
+    throw new Error("command type must be 0 read or 1 write");
   }
   const body = new Uint8Array(4 + payload.length);
   body.set(command, 0);
@@ -193,6 +197,23 @@ export function bytesFromHex(hex) {
 
 export function hexFromBytes(bytes) {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(" ");
+}
+
+export function uint8Payload(value) {
+  return new Uint8Array([clampByte(value)]);
+}
+
+export function littleEndianUint16Payload(value) {
+  const intValue = Math.max(0, Math.min(0xffff, Math.round(Number(value) || 0)));
+  return new Uint8Array([intValue & 0xff, (intValue >> 8) & 0xff]);
+}
+
+export function nullTerminatedStringPayload(value) {
+  return new Uint8Array([...new TextEncoder().encode(value), 0]);
+}
+
+function clampByte(value) {
+  return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
 }
 
 function commandIdFromBytes(bytes) {

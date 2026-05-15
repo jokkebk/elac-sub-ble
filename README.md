@@ -14,10 +14,10 @@ not Bluetooth Classic. The main protocol details are in
 [docs/protocol-notes.md](docs/protocol-notes.md), with process notes in
 [Journal.md](Journal.md).
 
-A read-only Web Bluetooth diagnostic client is available in
-[web/](web/). It connects to the physical subwoofer from Chrome or Edge,
-confirms which documented GATT path is present, sends query packets only, and
-exports decoded traffic as JSON for later analysis.
+A Web Bluetooth diagnostic client is available in [web/](web/). It connects to
+the physical subwoofer from Chrome or Edge, confirms which documented GATT path
+is present, runs read queries, offers guarded write experiments, and exports
+decoded traffic as JSON for later analysis.
 
 ## Goals
 
@@ -38,7 +38,7 @@ Generated decompiler output belongs in ignored `decompiled*` folders.
 
 The reusable packet helpers are in `scripts/elac_protocol.py`.
 
-## Web Bluetooth Read Client
+## Web Bluetooth Diagnostic Client
 
 Serve the repository over localhost and open the client in Chrome or Edge:
 
@@ -50,10 +50,15 @@ Then visit <http://localhost:8000/web/>. Web Bluetooth requires a secure
 context; `localhost` counts, but opening `web/index.html` directly from disk
 does not.
 
-The client is intentionally read-only. It writes BLE query frames with command
-type `0` to the subwoofer's write characteristic and does not expose command
-type `1` setters. Use **Export log** after a run to save raw frames, decoded
-packets, selected service UUIDs, browser metadata, and timestamps.
+The **Read** tab writes BLE query frames with command type `0` to the
+subwoofer's write characteristic. Use **Export log** after a run to save raw
+frames, decoded packets, selected service UUIDs, browser metadata, and
+timestamps.
+
+The **Write** tab is experimental. Master volume `0040` can be written without
+an extra prompt because the live readback has confirmed direct one-byte volume
+encoding. Other exposed writes show a browser confirmation before sending and
+then request a readback when the command has a read form.
 
 Use **Connect** first. If Chrome's chooser is empty, try **Broad scan**; that
 mode lists nearby BLE devices without requiring the ELAC service UUID to appear

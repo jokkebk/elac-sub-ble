@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ELAC SUB BLE Read Client</title>
+    <title>ELAC SUB BLE Diagnostic Client</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <header class="app-header">
       <div>
-        <h1>ELAC SUB BLE Read Client</h1>
+        <h1>ELAC SUB BLE Diagnostic Client</h1>
         <p id="support" class="support">Checking Web Bluetooth support.</p>
       </div>
       <div class="actions">
@@ -25,6 +25,21 @@
           <h2>Status</h2>
           <p id="status">Idle.</p>
         </div>
+        <button id="export-log" type="button" disabled>Export log</button>
+      </section>
+
+      <section class="panel">
+        <h2>Discovered GATT Path</h2>
+        <div id="discovered" class="discovered">Connect to inspect documented ELAC service paths.</div>
+      </section>
+
+      <nav class="tabs" aria-label="Diagnostic mode">
+        <button id="read-tab-button" class="tab-button active" type="button" aria-controls="read-panel">Read</button>
+        <button id="write-tab-button" class="tab-button" type="button" aria-controls="write-panel">Write</button>
+      </nav>
+
+      <section id="read-panel" class="panel tab-panel active">
+        <h2>Read Controls</h2>
         <div class="read-controls">
           <label>
             <input id="include-optional" type="checkbox" />
@@ -36,16 +51,7 @@
           </label>
           <button id="send-selected" type="button" disabled>Send selected read</button>
           <button id="run-reads" type="button" disabled>Run read sequence</button>
-          <button id="export-log" type="button" disabled>Export log</button>
         </div>
-      </section>
-
-      <section class="panel">
-        <h2>Discovered GATT Path</h2>
-        <div id="discovered" class="discovered">Connect to inspect documented ELAC service paths.</div>
-      </section>
-
-      <section class="panel">
         <h2>Read Results</h2>
         <div class="table-wrap">
           <table>
@@ -60,6 +66,26 @@
               </tr>
             </thead>
             <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="write-panel" class="panel tab-panel">
+        <h2>Write Controls</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>Name</th>
+                <th>Value</th>
+                <th>Action</th>
+                <th>Status</th>
+                <th>Payload</th>
+                <th>Raw frame</th>
+              </tr>
+            </thead>
+            <tbody id="write-body"></tbody>
           </table>
         </div>
       </section>
